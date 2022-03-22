@@ -11,7 +11,7 @@ Usage
 
 Clone the utility:
 
-		got clone git://github.com/basepr1me/OpenBSD-ShredDisk.git /var/www/got/public/shreddisk.git
+		got clone ssh://git@github.com/basepr1me/OpenBSD-ShredDisk.git /var/www/got/public/shreddisk.git
 		cd ~/repos/
 		got checkout /var/www/got/public/shreddisk.git
 
