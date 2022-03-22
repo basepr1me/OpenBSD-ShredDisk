@@ -177,7 +177,7 @@ main(void)
 		fseek(dd, 0, SEEK_END);
 		sh_time = time(NULL);
 
-		printf("\n\nPass %d of %d started %s\n", i_pass, passes,
+		printf("\n\nPass %d of %d started %s\n", i_pass + 1, passes,
 		    ctime(&sh_time));
 
 		do {
