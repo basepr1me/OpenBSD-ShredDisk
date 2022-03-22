@@ -63,7 +63,7 @@ main(void)
 	double percent, total_bytes, time_remaining = 0;
 	uint8_t rnum[BYTES];
 	u_int64_t sectors, total;
-	uint64_t start, seconds, now, elapsed = 0;
+	uint64_t start, seconds, now, elapsed = 0, passed_time;
 	struct  disklabel lab;
 	size_t written;
 	time_t sh_time, now_time;
@@ -197,9 +197,10 @@ main(void)
 			total += (written * BYTES);
 			now = seconds;
 			if (now - elapsed >= 1) {
-				now_time = time(NULL);
-				uint64_t passed_time = now_time - sh_time;
 				char *suffix;
+
+				now_time = time(NULL);
+				passed_time = now_time - sh_time;
 				if (passed_time > 0)
 					time_remaining = (total_bytes - total) /
 					    (total / passed_time);
@@ -220,14 +221,20 @@ main(void)
 				    percent, time_remaining * (passes - i_pass),
 				    suffix);
 				fflush(stdout);
+
 				free(suffix);
+
 				elapsed = now;
 			}
 		} while ((written * BYTES) == sizeof(rnum));
 	}
 
 	sh_time = time(NULL);
-	printf("\n\nFinished shredding %s\n", ctime(&sh_time));
+	if (percent < 100)
+		printf("\n\nDisk appears to have been removed.\n"
+		    "Finished shredding %s\n", ctime(&sh_time));
+	else
+		printf("\n\nFinished shredding %s\n", ctime(&sh_time));
 
 	fclose(dd);
 
