@@ -140,8 +140,8 @@ main(void)
 		if (strcmp(doshred, "n") == 0 || strcmp(doshred, "no") == 0) {
 			printf("Exiting!\n");
 			exit(0);
-		} else if (strcmp(doshred, "y") == 0 || strcmp(doshred, "yes")
-		    == 0)
+		} else if (strcmp(doshred, "y") == 0 ||
+		    strcmp(doshred, "yes") == 0)
 			break;
 	} while (1);
 
