@@ -36,7 +36,7 @@ int main(void);
 void sh_sig(int);
 
 char string0[] = "#########################################";
-char string1[] = "#  Welcome to shredderc. BE CAREFUL!!!  #";
+char string1[] = "#  Welcome to shreddisk. BE CAREFUL!!!  #";
 char string2[] = "Which device would you like to shred? [ex: sd0]: ";
 char string3[] = "How many passes would you like to make? ";
 char string4[] = "ARE YOU SURE YOU WISH TO CONTINUE?\nOnce you start, the"
