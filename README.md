@@ -1,6 +1,6 @@
 # shreddisk utility for OpenBSD
 
-OpenBSD disk shredder
+OpenBSD Disk Shredder
 
 The shreddisk utility is an efficient and simple, NIST compliant disk shredder
 tool. You decide how many times to write to the disk and whether to write NULL,
