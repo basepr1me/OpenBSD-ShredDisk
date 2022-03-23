@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include <err.h>
 #include <fcntl.h>
+#include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -230,11 +231,10 @@ main(void)
 	}
 
 	sh_time = time(NULL);
-	if (percent < 100)
-		printf("\n\nDisk appears to have been removed.\n"
-		    "Finished shredding %s\n", ctime(&sh_time));
-	else
-		printf("\n\nFinished shredding %s\n", ctime(&sh_time));
+	if (round(percent) < 100)
+		printf("\n\nDisk appears to have been removed.");
+
+	printf("\n\nFinished shredding %s\n", ctime(&sh_time));
 
 	fclose(dd);
 
