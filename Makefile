@@ -1,7 +1,7 @@
 PROG =		shreddisk
 SRCS =		shreddisk.c
 
-LDADD =		-lutil
+LDADD =		-lutil -lm
 
 CFLAGS +=	-Werror -Wall -Wstrict-prototypes -Wunused-variable
 
