@@ -226,8 +226,7 @@ main(void)
 					    == -1)
 						err(1, "asprintf");
 
-				percent = total / total_bytes *
-				    100;
+				percent = total / total_bytes * 100;
 				printf("\rPercent completed: %0.2f%% / " \
 				    "Approximate time remaining: %0.2f %s     ",
 				    percent, time_remaining * (passes - i_pass),
