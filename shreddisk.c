@@ -32,6 +32,7 @@
 #include <util.h>
 
 #define BYTES 32768
+#define BUFF 512
 
 int main(void);
 void sh_sig(int);
@@ -57,10 +58,9 @@ int
 main(void)
 {
 	FILE *dd;
-	char *realdev = NULL, *ppasses = NULL, *cont = NULL;
-	char *doshred = NULL, *todo = NULL;
-	char dev[512];
-	int passes, i_pass, dev_fd, si, tdo;
+	char *realdev = NULL;
+	char ppasses[BUFF], cont[BUFF], doshred[BUFF], todo[BUFF], dev[BUFF];
+	unsigned int passes, i_pass, dev_fd, si, tdo;
 	double percent, total_bytes, time_remaining = 0;
 	uint8_t rnum[BYTES];
 	u_int64_t sectors, total;
@@ -68,6 +68,7 @@ main(void)
 	struct  disklabel lab;
 	size_t written;
 	time_t sh_time, now_time;
+	const char *errstr;
 
 	signal(SIGINT, sh_sig);
 	signal(SIGTERM, sh_sig);
@@ -77,22 +78,14 @@ main(void)
 
 	if ((realdev = malloc(sizeof(char))) == NULL)
 		err(1, "malloc");
-	if ((ppasses = malloc(sizeof(char))) == NULL)
-		err(1, "malloc");
-	if ((cont = malloc(sizeof(char))) == NULL)
-		err(1, "malloc");
-	if ((doshred = malloc(sizeof(char))) == NULL)
-		err(1, "malloc");
-	if ((todo = malloc(sizeof(char))) == NULL)
-		err(1, "malloc");
 
 	printf("\n\n%s\n%s\n%s\n\n", string0, string1, string0);
 
 	do {
 		printf("%s", string2);
 		fgets(dev, sizeof(dev), stdin);
-		dev[strlen(dev) - 1] = '\0';
-	} while (strlen(dev) < 1);
+	} while (strlen(dev) < 4 || strlen(dev) > BUFF);
+	dev[strlen(dev) - 1] = '\0';
 
 	printf("\n");
 
@@ -100,8 +93,11 @@ main(void)
 		printf("%s", string3);
 		fgets(ppasses, sizeof(ppasses), stdin);
 		ppasses[strlen(ppasses) - 1] = '\0';
-		passes = atoi(ppasses);
-	} while (passes < 1);
+		passes = strtonum(ppasses, 1, INT_MAX, &errstr);
+		if (errstr != NULL)
+			printf("\nInvalid input: %s\n\n", ppasses);
+	} while (errstr != NULL);
+	errstr = NULL;
 
 	printf("\n");
 
@@ -109,8 +105,11 @@ main(void)
 		printf("%s", string5);
 		fgets(todo, sizeof(todo), stdin);
 		todo[strlen(todo) - 1] = '\0';
-		tdo = atoi(todo);
-	} while (tdo < 1 || tdo > 3);
+		tdo = strtonum(todo, 1, 3, &errstr);
+		if (errstr != NULL)
+			printf("\nInvalid input: %s\n\n", todo);
+	} while (errstr != NULL);
+	errstr = NULL;
 
 	printf("\n");
 
@@ -156,9 +155,11 @@ main(void)
 
 		sectors = DL_GETDSIZE(&lab);
 		total_bytes = sectors * lab.d_secsize;
-		close(dev_fd);
+		if (close(dev_fd) == -1)
+			err(1, "close");
 
-		dd = fopen(realdev, "w");
+		if ((dd = fopen(realdev, "w")) == NULL)
+			err(1, "fopen");
 	};
 
 	if (pledge("stdio unveil", NULL) == -1)
@@ -175,7 +176,8 @@ main(void)
 
 	for (i_pass = 0; i_pass < passes; i_pass++) {
 		total = 0;
-		fseek(dd, 0, SEEK_END);
+		if (fseek(dd, 0, SEEK_END) != 0)
+			err(1, "fseek");
 		sh_time = time(NULL);
 
 		printf("\n\nPass %d of %d started %s\n", i_pass + 1, passes,
@@ -195,6 +197,9 @@ main(void)
 				break;
 			}
 			written = fwrite(&rnum, BYTES, 1, dd);
+			if (written != 1 && sizeof(rnum) != written * BYTES)
+				err(1, "fwrite");
+
 			total += (written * BYTES);
 			now = seconds;
 			if (now - elapsed >= 1) {
@@ -207,13 +212,19 @@ main(void)
 					    (total / passed_time);
 				if (time_remaining > (60 * 60)) {
 					time_remaining /= (60 * 60);
-					asprintf(&suffix, "%s", "hours       ");
+					if (asprintf(&suffix, "%s", "hours") ==
+					    -1)
+						err(1, "asprintf");
 				} else if (time_remaining < (60 * 60) &&
 				    time_remaining > 60) {
 					time_remaining /= 60;
-					asprintf(&suffix, "%s", "minutes     ");
+					if (asprintf(&suffix, "%s", "minutes")
+					    == -1)
+						err(1, "asprintf");
 				} else
-					asprintf(&suffix, "%s", "seconds     ");
+					if (asprintf(&suffix, "%s", "seconds")
+					    == -1)
+						err(1, "asprintf");
 
 				percent = total / total_bytes *
 				    100;
@@ -221,7 +232,8 @@ main(void)
 				    "Approximate time remaining: %0.2f %s     ",
 				    percent, time_remaining * (passes - i_pass),
 				    suffix);
-				fflush(stdout);
+				if (fflush(stdout) != 0)
+					err(1, "fflush");
 
 				free(suffix);
 
@@ -236,7 +248,8 @@ main(void)
 
 	printf("\n\nFinished shredding %s\n", ctime(&sh_time));
 
-	fclose(dd);
+	if (fclose(dd) != 0)
+		err(1, "fclose");
 
 	/* re-enable cursor on finish */
 	printf("\e[?25h");
