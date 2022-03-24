@@ -164,7 +164,7 @@ main(void)
 
 	if (pledge("stdio unveil", NULL) == -1)
 		err(1, "pledge");
-	if (unveil(realdev, "rw") != 0)
+	if (unveil(realdev, "w") != 0)
 		err(1, "unveil");
 
 	/* disable the cursor */
@@ -198,7 +198,7 @@ main(void)
 			}
 			written = fwrite(&rnum, BYTES, 1, dd);
 			if (written != 1 && sizeof(rnum) != written * BYTES)
-				err(1, "fwrite");
+				break;
 
 			total += (written * BYTES);
 			now = seconds;
@@ -243,7 +243,7 @@ main(void)
 
 	sh_time = time(NULL);
 	if (round(percent) < 100)
-		printf("\n\nDisk appears to have been removed.");
+		printf("\n\nDisk removed or a write error occurred.");
 
 	printf("\n\nFinished shredding %s\n", ctime(&sh_time));
 
