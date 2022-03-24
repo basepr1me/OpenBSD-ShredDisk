@@ -156,10 +156,10 @@ main(void)
 		sectors = DL_GETDSIZE(&lab);
 		total_bytes = sectors * lab.d_secsize;
 		if (close(dev_fd) == -1)
-			err(1, "close");
+			err(1, "close: %d", dev_fd);
 
 		if ((dd = fopen(realdev, "w")) == NULL)
-			err(1, "fopen");
+			err(1, "fopen: %s", realdev);
 	};
 
 	if (pledge("stdio unveil", NULL) == -1)
