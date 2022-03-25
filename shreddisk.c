@@ -35,6 +35,7 @@
 
 int main(void);
 void sh_sig(int);
+void clear(void);
 
 char string0[] = "#########################################";
 char string1[] = "#  Welcome to shreddisk. BE CAREFUL!!!  #";
@@ -47,6 +48,14 @@ char string5[] = "What do you want to write? [1:null, 2:0, 3:rand]: ";
 unsigned int shredding = 0;
 
 void
+clear(void)
+{
+	printf("\r");
+	for (int i = 0; i < 80; i++)
+		printf(" ");
+}
+
+void
 sh_sig(int sig)
 {
 	/* re-enable the cursor and exit */
@@ -54,9 +63,8 @@ sh_sig(int sig)
 		do {
 			char quit[BUFF];
 			unsigned int si;
-			printf("\r                                             "
-			    "                                                  "
-			    "\rDo you really want to quit? [y|n]: ");
+			clear();
+			printf("\rDo you really want to quit? [y|n]: ");
 			fflush(stdout);
 			fgets(quit, sizeof(quit), stdin);
 			quit[strlen(quit) - 1] = '\0';
@@ -195,7 +203,7 @@ baddev:
 	/* disable the cursor */
 	printf("\e[?25l");
 
-	printf("\nShredding %s: %0.0f bytes", dev, total_bytes);
+	printf("\nShredding %s: %0.0f bytes\n\n", dev, total_bytes);
 
 	shredding = 1;
 	start = time(NULL);
@@ -203,13 +211,24 @@ baddev:
 	for (i_pass = 0; i_pass < passes; i_pass++) {
 		total = 0;
 		if (fseek(dd, 0, SEEK_END) != 0) {
-			printf("\nSeek problem on device %s\n\n", realdev);
+			clear();
+			printf("\rSeek problem on device %s\n\n", realdev);
+			if (fflush(stdout) != 0) {
+				clear();
+				printf("\rCould not fflush stdout\n\n");
+				goto done;
+			}
 			goto done;
 		}
 		sh_time = time(NULL);
 
-		printf("\n\nPass %d of %d started %s\n", i_pass + 1, passes,
+		printf("\rPass %d of %d started %s\n", i_pass + 1, passes,
 		    ctime(&sh_time));
+		if (fflush(stdout) != 0) {
+			clear();
+			printf("\rCould not fflush stdout\n\n");
+			goto done;
+		}
 
 		do {
 			byte_diff = total_bytes - total;
@@ -243,7 +262,8 @@ baddev:
 				now_time = time(NULL);
 				passed_time = now_time - sh_time;
 				if (passed_time > 0)
-					time_remaining = (total_bytes - total) /
+					time_remaining = (total_bytes *
+					    (passes - i_pass) - total) /
 					    (total / passed_time);
 				if (time_remaining > (60 * 60)) {
 					time_remaining /= (60 * 60);
@@ -259,12 +279,13 @@ baddev:
 
 				percent = total / total_bytes * 100;
 
-				printf("\rPercent completed: %0.2f%% | "
-				    "Approximate time remaining: %0.2f %s     ",
-				    percent, time_remaining * (passes - i_pass),
+				printf("\rPercent of pass completed: %0.2f%% | "
+				    "Shred time remaining: %0.2f %s     ",
+				    percent, time_remaining,
 				    suffix);
 				if (fflush(stdout) != 0) {
-					printf("\nCould not fflush stdout\n\n");
+					clear();
+					printf("\rCould not fflush stdout\n\n");
 					goto done;
 				}
 
@@ -272,20 +293,34 @@ baddev:
 
 				elapsed = now;
 			}
-			if (total_bytes == total)
+			if (total_bytes == total) {
+				clear();
+				if (fflush(stdout) != 0) {
+					clear();
+					printf("\rCould not fflush stdout\n\n");
+					goto done;
+				}
 				break;
+			}
 		} while (1);
 	}
 
 	sh_time = time(NULL);
 
-	if (percent < 100.00)
-		printf("\n\nDisk removed or a write error occurred.");
+	if (percent < 100.00) {
+		clear();
+		printf("\rDisk removed or a write error occurred.\n\n");
+		if (fflush(stdout) != 0) {
+			clear();
+			printf("\rCould not fflush stdout\n\n");
+			goto done;
+		}
+	}
 
-	printf("\n\nFinished shredding %s\n", ctime(&sh_time));
+	printf("\rFinished shredding %s\n", ctime(&sh_time));
 
 	if (fclose(dd) != 0)
-		printf("\nCould not close device %s\n\n", realdev);
+		printf("\nCould not close device %s\n", realdev);
 done:
 	/* re-enable cursor on finish */
 	printf("\e[?25h");
