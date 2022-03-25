@@ -22,7 +22,6 @@
 #include <ctype.h>
 #include <err.h>
 #include <fcntl.h>
-#include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,7 +31,7 @@
 #include <util.h>
 
 #define BYTES 32768
-#define BUFF 512
+#define BUFF 15
 
 int main(void);
 void sh_sig(int);
@@ -50,7 +49,7 @@ sh_sig(int sig)
 {
 	/* re-enable the cursor and exit */
 	printf("\e[?25h");
-	printf("\n");
+	printf("\n\n");
 	exit(1);
 }
 
@@ -60,9 +59,8 @@ main(void)
 	FILE *dd;
 	char *realdev = NULL;
 	char ppasses[BUFF], cont[BUFF], doshred[BUFF], todo[BUFF], dev[BUFF];
-	unsigned int passes, i_pass, dev_fd, si, tdo;
-	double percent, total_bytes, time_remaining = 0;
-	uint8_t rnum[BYTES];
+	unsigned int passes, i_pass, dev_fd, si, tdo, twrite;
+	double percent, total_bytes, time_remaining = 0, byte_diff;
 	u_int64_t sectors, total;
 	uint64_t start, seconds, now, elapsed = 0, passed_time;
 	struct  disklabel lab;
@@ -118,9 +116,8 @@ main(void)
 		    dev, passes);
 		fgets(cont, sizeof(cont), stdin);
 		cont[strlen(cont) - 1] = '\0';
-		for (si = 0; si < strlen(cont); si++) {
+		for (si = 0; si < strlen(cont); si++)
 			cont[si] = tolower(cont[si]);
-		}
 		if (strcmp(cont, "n") == 0 || strcmp(cont, "no") == 0) {
 			printf("Exiting!\n");
 			exit(0);
@@ -134,9 +131,8 @@ main(void)
 		printf("%s", string4);
 		fgets(doshred, sizeof(doshred), stdin);
 		doshred[strlen(doshred) - 1] = '\0';
-		for (si = 0; si< strlen(doshred); si++) {
+		for (si = 0; si< strlen(doshred); si++)
 			doshred[si] = tolower(doshred[si]);
-		}
 		if (strcmp(doshred, "n") == 0 || strcmp(doshred, "no") == 0) {
 			printf("Exiting!\n");
 			exit(0);
@@ -147,20 +143,25 @@ main(void)
 
 	dev_fd = opendev(dev, O_RDWR, OPENDEV_PART, &realdev);
 
-	if (dev_fd < 0)
-		err(1, "open: %s", dev);
-	else {
-		if (ioctl(dev_fd, DIOCGPDINFO, &lab) < 0)
-			err(4, "ioctl DIOCGPDINFO");
-
+	if (dev_fd < 0) {
+		printf("\nCould not open device %s\n\n", dev);
+		goto done;
+	} else {
+		if (ioctl(dev_fd, DIOCGPDINFO, &lab) < 0) {
+			printf("\nDevice %s does not exist\n\n", dev);
+			goto done;
+		}
 		sectors = DL_GETDSIZE(&lab);
 		total_bytes = sectors * lab.d_secsize;
-		if (close(dev_fd) == -1)
-			err(1, "close: %d", dev_fd);
-
-		if ((dd = fopen(realdev, "w")) == NULL)
-			err(1, "fopen: %s", realdev);
-	};
+		if (close(dev_fd) == -1) {
+			printf("\nCould not close fd %d\n\n", dev_fd);
+			goto done;
+		}
+		if ((dd = fopen(realdev, "w")) == NULL) {
+			printf("\nCould not open device %s\n\n", realdev);
+			goto done;
+		}
+	}
 
 	if (pledge("stdio unveil", NULL) == -1)
 		err(1, "pledge");
@@ -176,33 +177,42 @@ main(void)
 
 	for (i_pass = 0; i_pass < passes; i_pass++) {
 		total = 0;
-		if (fseek(dd, 0, SEEK_END) != 0)
-			err(1, "fseek");
+		if (fseek(dd, 0, SEEK_END) != 0) {
+			printf("\nSeek problem on device %s\n\n", realdev);
+			goto done;
+		}
 		sh_time = time(NULL);
 
 		printf("\n\nPass %d of %d started %s\n", i_pass + 1, passes,
 		    ctime(&sh_time));
 
 		do {
+			byte_diff = total_bytes - total;
+			twrite = BUFF;
+			if (byte_diff < BYTES)
+				twrite = byte_diff;
+			uint8_t rnum[twrite];
 			seconds = time(NULL) - start;
 			switch (tdo) {
 			case 1:
-				memset(&rnum, '\0', BYTES);
+				memset(&rnum, '\0', twrite);
 				break;
 			case 2:
-				memset(&rnum, '0', BYTES);
+				memset(&rnum, '0', twrite);
 				break;
 			case 3:
-				arc4random_buf(&rnum, BYTES);
+				arc4random_buf(&rnum, twrite);
 				break;
 			}
-			written = fwrite(&rnum, BYTES, 1, dd);
-			if (written != 1 && sizeof(rnum) != written * BYTES)
+
+			written = fwrite(&rnum, twrite, 1, dd);
+			if (sizeof(rnum) != written * twrite)
 				break;
 
-			total += (written * BYTES);
+			total += (written * twrite);
+
 			now = seconds;
-			if (now - elapsed >= 1) {
+			if (now - elapsed >= 1 || total_bytes == total) {
 				char *suffix;
 
 				now_time = time(NULL);
@@ -212,44 +222,46 @@ main(void)
 					    (total / passed_time);
 				if (time_remaining > (60 * 60)) {
 					time_remaining /= (60 * 60);
-					if (asprintf(&suffix, "%s", "hours") ==
-					    -1)
+					if (asprintf(&suffix, "%s",
+					    "hours") == -1)
 						err(1, "asprintf");
-				} else if (time_remaining < (60 * 60) &&
-				    time_remaining > 60) {
+				} else {
 					time_remaining /= 60;
-					if (asprintf(&suffix, "%s", "minutes")
-					    == -1)
+					if (asprintf(&suffix, "%s",
+					    "minutes") == -1)
 						err(1, "asprintf");
-				} else
-					if (asprintf(&suffix, "%s", "seconds")
-					    == -1)
-						err(1, "asprintf");
+				}
 
 				percent = total / total_bytes * 100;
-				printf("\rPercent completed: %0.2f%% / " \
+
+				printf("\rPercent completed: %0.2f%% | "
 				    "Approximate time remaining: %0.2f %s     ",
 				    percent, time_remaining * (passes - i_pass),
 				    suffix);
-				if (fflush(stdout) != 0)
-					err(1, "fflush");
+				if (fflush(stdout) != 0) {
+					printf("\nCould not fflush stdout\n\n");
+					goto done;
+				}
 
 				free(suffix);
 
 				elapsed = now;
 			}
-		} while ((written * BYTES) == sizeof(rnum));
+			if (total_bytes == total)
+				break;
+		} while (1);
 	}
 
 	sh_time = time(NULL);
-	if (round(percent) < 100)
+
+	if (percent < 100.00)
 		printf("\n\nDisk removed or a write error occurred.");
 
 	printf("\n\nFinished shredding %s\n", ctime(&sh_time));
 
 	if (fclose(dd) != 0)
-		err(1, "fclose");
-
+		printf("\nCould not close device %s\n\n", realdev);
+done:
 	/* re-enable cursor on finish */
 	printf("\e[?25h");
 
