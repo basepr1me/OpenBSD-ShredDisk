@@ -62,17 +62,14 @@ sh_sig(int sig)
 			quit[strlen(quit) - 1] = '\0';
 			for (si = 0; si < strlen(quit); si++)
 			quit[si] = tolower(quit[si]);
-			if (strcmp(quit, "n") == 0 || strcmp(quit, "no") == 0) {
-				printf("\n");
+			if (strcmp(quit, "n") == 0 || strcmp(quit, "no") == 0)
 				return;
-			} else if (strcmp(quit, "y") == 0 ||
-			    strcmp(quit, "yes") == 0) {
-				printf("\n");
+			else if (strcmp(quit, "y") == 0 ||
+			    strcmp(quit, "yes") == 0)
 				break;
-			}
 		} while (1);
 	printf("\e[?25h");
-	printf("\n\n");
+	printf("\n");
 	exit(1);
 }
 
