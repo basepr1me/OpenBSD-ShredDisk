@@ -44,10 +44,33 @@ char string4[] = "ARE YOU SURE YOU WISH TO CONTINUE?\nOnce you start, the"
 		     " damage is done! [y|n]: ";
 char string5[] = "What do you want to write? [1:null, 2:0, 3:rand]: ";
 
+unsigned int shredding = 0;
+
 void
 sh_sig(int sig)
 {
 	/* re-enable the cursor and exit */
+	if (shredding && sig == SIGINT)
+		do {
+			char quit[BUFF];
+			unsigned int si;
+			printf("\r                                             "
+			    "                                                  "
+			    "\rDo you really want to quit? [y|n]: ");
+			fflush(stdout);
+			fgets(quit, sizeof(quit), stdin);
+			quit[strlen(quit) - 1] = '\0';
+			for (si = 0; si < strlen(quit); si++)
+			quit[si] = tolower(quit[si]);
+			if (strcmp(quit, "n") == 0 || strcmp(quit, "no") == 0) {
+				printf("\n");
+				return;
+			} else if (strcmp(quit, "y") == 0 ||
+			    strcmp(quit, "yes") == 0) {
+				printf("\n");
+				break;
+			}
+		} while (1);
 	printf("\e[?25h");
 	printf("\n\n");
 	exit(1);
@@ -80,10 +103,36 @@ main(void)
 	printf("\n\n%s\n%s\n%s\n\n", string0, string1, string0);
 
 	do {
+baddev:
 		printf("%s", string2);
 		fgets(dev, sizeof(dev), stdin);
 	} while (strlen(dev) < 4 || strlen(dev) > BUFF);
 	dev[strlen(dev) - 1] = '\0';
+
+	dev_fd = opendev(dev, O_RDWR, OPENDEV_PART, &realdev);
+
+	if (dev_fd < 0) {
+		printf("\nCould not open device %s\n\n", dev);
+		goto baddev;
+	} else {
+		if (ioctl(dev_fd, DIOCGPDINFO, &lab) < 0) {
+			printf("\nDevice %s does not exist\n\n", dev);
+			memset(&dev, 0, sizeof(dev));
+			goto baddev;
+		}
+		sectors = DL_GETDSIZE(&lab);
+		total_bytes = sectors * lab.d_secsize;
+		if (close(dev_fd) == -1) {
+			printf("\nCould not close fd %d\n\n", dev_fd);
+			memset(&dev, 0, sizeof(dev));
+			goto done;
+		}
+		if ((dd = fopen(realdev, "w")) == NULL) {
+			printf("\nCould not open device %s\n\n", realdev);
+			memset(&dev, 0, sizeof(dev));
+			goto baddev;
+		}
+	}
 
 	printf("\n");
 
@@ -141,28 +190,6 @@ main(void)
 			break;
 	} while (1);
 
-	dev_fd = opendev(dev, O_RDWR, OPENDEV_PART, &realdev);
-
-	if (dev_fd < 0) {
-		printf("\nCould not open device %s\n\n", dev);
-		goto done;
-	} else {
-		if (ioctl(dev_fd, DIOCGPDINFO, &lab) < 0) {
-			printf("\nDevice %s does not exist\n\n", dev);
-			goto done;
-		}
-		sectors = DL_GETDSIZE(&lab);
-		total_bytes = sectors * lab.d_secsize;
-		if (close(dev_fd) == -1) {
-			printf("\nCould not close fd %d\n\n", dev_fd);
-			goto done;
-		}
-		if ((dd = fopen(realdev, "w")) == NULL) {
-			printf("\nCould not open device %s\n\n", realdev);
-			goto done;
-		}
-	}
-
 	if (pledge("stdio unveil", NULL) == -1)
 		err(1, "pledge");
 	if (unveil(realdev, "w") != 0)
@@ -173,6 +200,7 @@ main(void)
 
 	printf("\nShredding %s: %0.0f bytes", dev, total_bytes);
 
+	shredding = 1;
 	start = time(NULL);
 
 	for (i_pass = 0; i_pass < passes; i_pass++) {
